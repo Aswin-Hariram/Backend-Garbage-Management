@@ -1,3 +1,4 @@
+// ---------------- CONFIG ----------------
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,17 +8,134 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
+// ---------------- ENUMS ----------------
+enum Role {
+  ADMIN
+  USER
+  COLLECTOR
 }
 
-enum Role {
-  USER
-  ADMIN
-  WORKER
+enum DustbinStatus {
+  EMPTY
+  PARTIAL
+  FULL
+}
+
+enum YesNo {
+  Y
+  N
+}
+
+enum CollectionType {
+  HOME
+  PUBLIC
+}
+
+// ---------------- MODELS ----------------
+
+// LOCATION TABLE (NEW)
+model Location {
+  id         Int      @id @default(autoincrement())
+  latitude   Float
+  longitude  Float
+  address    String?       // optional detailed address
+  city       String?
+  state      String?
+  zipcode    String?
+  createdAt  DateTime @default(now())
+
+  // relations
+  userId      Int?   @unique
+  user        User?  @relation(fields: [userId], references: [id])
+
+  householdId Int?   @unique
+  household   Household? @relation(fields: [householdId], references: [id])
+
+  dustbinId   Int?   @unique
+  dustbin     Dustbin? @relation(fields: [dustbinId], references: [id])
+}
+
+// USERS TABLE
+model User {
+  id          Int       @id @default(autoincrement())
+  username    String
+  email       String    @unique
+  password    String
+  role        Role      @default(USER)
+  phone       String?
+  createdAt   DateTime  @default(now())
+
+  households  Household[]
+  dustbins    Dustbin[]          @relation("AdminDustbins")
+  homeCollections HomeCollection[]
+  collectionAssignments CollectionAssignment[] @relation("CollectorAssignments")
+  location    Location?
+}
+
+// HOUSEHOLDS TABLE
+model Household {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  address   String
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  homeCollections HomeCollection[]
+  location  Location?
+}
+
+// DUSTBINS TABLE
+model Dustbin {
+  id          Int          @id @default(autoincrement())
+  adminId     Int
+  status      DustbinStatus @default(EMPTY)
+  lastCleaned DateTime?
+  createdAt   DateTime      @default(now())
+
+  admin       User          @relation("AdminDustbins", fields: [adminId], references: [id])
+  publicCollections PublicCollection[]
+  location    Location?
+}
+
+// HOME_COLLECTIONS TABLE
+model HomeCollection {
+  id            Int       @id @default(autoincrement())
+  householdId   Int
+  userId        Int
+  quantity      Decimal   @db.Decimal(10,2)
+  collectionDate DateTime
+  collected     YesNo     @default(N)
+  createdAt     DateTime  @default(now())
+
+  household     Household @relation(fields: [householdId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+  assignments   CollectionAssignment[] @relation("HomeAssignment")
+}
+
+// PUBLIC_COLLECTIONS TABLE
+model PublicCollection {
+  id            Int       @id @default(autoincrement())
+  dustbinId     Int
+  quantity      Decimal   @db.Decimal(10,2)
+  collectionDate DateTime
+  collected     YesNo     @default(N)
+  createdAt     DateTime  @default(now())
+
+  dustbin       Dustbin   @relation(fields: [dustbinId], references: [id])
+  assignments   CollectionAssignment[] @relation("PublicAssignment")
+}
+
+// COLLECTION_ASSIGNMENTS TABLE
+model CollectionAssignment {
+  id              Int            @id @default(autoincrement())
+  collectionType  CollectionType
+  homeCollectionId   Int?
+  publicCollectionId Int?
+  collectorId        Int
+  assignedAt         DateTime @default(now())
+  completedAt        DateTime?
+
+  collector     User          @relation("CollectorAssignments", fields: [collectorId], references: [id])
+  homeCollection   HomeCollection?   @relation("HomeAssignment", fields: [homeCollectionId], references: [id], map: "CollectionAssignment_homeCollection_fkey")
+  publicCollection PublicCollection? @relation("PublicAssignment", fields: [publicCollectionId], references: [id], map: "CollectionAssignment_publicCollection_fkey")
 }

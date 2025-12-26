@@ -9,6 +9,8 @@ class ApiError extends Error {
     this.statusCode = statusCode;
     this.success = false;
     this.errors = errors;
+    // ensure message is enumerable when serialized
+    this.message = message;
 
     if (stack) {
       this.stack = stack;
